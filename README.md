@@ -73,7 +73,7 @@ def agent_loop(query):
 ### 运行
 
 ```bash
-uv run s01_agent_loop.py
+uv run s02_tool_use.py
 ```
 
 测试下面这些 Prompts:
@@ -86,6 +86,50 @@ uv run s01_agent_loop.py
 ```
 
 ## 2. Tools
+
+One Handler Per Tool. 加一个工具, 只加一个 handler。
+
+> The Dispatch Map: 字典将工具名称映射到处理函数。
+
+![alt text](docs/images/1774884909671.png)
+
+### 问题
+
+只有 `bash` 时, 所有操作都走 shell。`cat` 截断不可预测, `sed` 遇到特殊字符就崩, 每次 `bash` 调用都是不受约束的安全面。专用工具 (`read_file`, `write_file`) 可以在工具层面做路径沙箱。
+
+关键洞察: 加工具不需要改循环。
+
+### 解决方案
+
+```txt
++--------+      +-------+      +------------------+
+|  User  | ---> |  LLM  | ---> | Tool Dispatch    |
+| prompt |      |       |      | {                |
++--------+      +---+---+      |   bash: run_bash |
+                    ^          |   read: run_read |
+                    |          |   write: run_wr  |
+                    +----------+   edit: run_edit |
+                    tool_result| }                |
+                               +------------------+
+
+The dispatch map is a dict: {tool_name: handler_function}.
+One lookup replaces any if/elif chain.
+```
+
+### 运行
+
+```bash
+uv run s01_agent_loop.py
+```
+
+测试下面这些 Prompts:
+
+```txt
+1. Read the file pyproject.toml and list all dependencies
+2. Create a file called greet.py with a greet(name) function
+3. Edit greet.py to add a docstring to the function
+4. Read greet.py to verify the edit worked
+```
 
 ## 3. TodoWrite
 
