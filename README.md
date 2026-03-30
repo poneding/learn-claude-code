@@ -1,5 +1,7 @@
 # Learn Claude Code
 
+学习地址：[learn-claude-code](https://learn.shareai.run/)
+
 从 0 到 1 构建 nano Claude Code-like agent。
 
 核心模式：所有 AI 编程 Agent 共享同一个循环：调用模型、执行工具、回传结果。生产级系统会在其上叠加策略、权限和生命周期层。
@@ -73,7 +75,7 @@ def agent_loop(query):
 ### 运行
 
 ```bash
-uv run s02_tool_use.py
+uv run s01_agent_loop.py
 ```
 
 测试下面这些 Prompts:
@@ -119,7 +121,7 @@ One lookup replaces any if/elif chain.
 ### 运行
 
 ```bash
-uv run s01_agent_loop.py
+uv run s02_tool_use.py
 ```
 
 测试下面这些 Prompts:
@@ -132,6 +134,50 @@ uv run s01_agent_loop.py
 ```
 
 ## 3. TodoWrite
+
+Plan Before You Act.
+
+> 没有计划的代理人会随波逐流；先列出步骤，然后再执行。
+
+### 问题
+
+多步任务中, 模型会丢失进度 -- 重复做过的事、跳步、跑偏。对话越长越严重: 工具结果不断填满上下文, 系统提示的影响力逐渐被稀释。一个 10 步重构可能做完 1-3 步就开始即兴发挥, 因为 4-10 步已经被挤出注意力了。
+
+### 解决方案
+
+```txt
++--------+      +-------+      +---------+
+|  User  | ---> |  LLM  | ---> | Tools   |
+| prompt |      |       |      | + todo  |
++--------+      +---+---+      +----+----+
+                    ^                |
+                    |   tool_result  |
+                    +----------------+
+                          |
+              +-----------+-----------+
+              | TodoManager state     |
+              | [ ] task A            |
+              | [>] task B  <- doing  |
+              | [x] task C            |
+              +-----------------------+
+                          |
+              if rounds_since_todo >= 3:
+                inject <reminder> into tool_result
+```
+
+### 运行
+
+```bash
+uv run s03_todo_write.py
+```
+
+测试下面这些 Prompts:
+
+```txt
+1. Refactor the file hello.py: add type hints, docstrings, and a main guard
+2. Create a Python package with __init__.py, utils.py, and tests/test_utils.py
+3. Review all Python files and fix any style issues
+```
 
 ## 4. Subagents
 
