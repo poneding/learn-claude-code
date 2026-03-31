@@ -78,6 +78,8 @@ def agent_loop(query):
 uv run s01_agent_loop.py
 ```
 
+> 运行配置：拷贝 `.env.example` 到 `.env`, 填入你的 Base Url，API Key以及模型 ID。后续章节运行同样需要这个配置。
+
 测试下面这些 Prompts:
 
 ```txt
@@ -180,6 +182,46 @@ uv run s03_todo_write.py
 ```
 
 ## 4. Subagents
+
+Clean Context Per Subtask. 每个子任务一个干净的上下文。
+
+> 子代理使用独立的消息序列，保持主会话干净。
+
+![alt text](docs/images/1774919835944.png)
+
+### 问题
+
+智能体工作越久, messages 数组越胖。每次读文件、跑命令的输出都永久留在上下文里。"这个项目用什么测试框架?" 可能要读 5 个文件, 但父智能体只需要一个词: "pytest。"
+
+### 解决方案
+
+```txt
+Parent agent                     Subagent
++------------------+             +------------------+
+| messages=[...]   |             | messages=[]      | <-- fresh
+|                  |  dispatch   |                  |
+| tool: task       | ----------> | while tool_use:  |
+|   prompt="..."   |             |   call tools     |
+|                  |  summary    |   append results |
+|   result = "..." | <---------- | return last text |
++------------------+             +------------------+
+
+Parent context stays clean. Subagent context is discarded.
+```
+
+### 运行
+
+```bash
+uv run s04_subagents.py
+```
+
+测试下面这些 Prompts:
+
+```txt
+1. Use a subtask to find what testing framework this project uses
+2. Delegate: read all .py files and summarize what each one does
+3. Use a task to create a new module, then verify it from here
+```
 
 ## 5. Skills
 
