@@ -28,7 +28,12 @@ load_dotenv(override=True)
 WORKDIR = Path.cwd()
 # client = Anthropic(base_url=os.getenv("ANTHROPIC_BASE_URL"))
 client = Anthropic(
-    base_url=os.getenv("ANTHROPIC_BASE_URL"), api_key=os.getenv("ANTHROPIC_API_KEY")
+    base_url=os.getenv("ANTHROPIC_BASE_URL"),
+    # api_key=os.getenv("ANTHROPIC_API_KEY"),
+    # auth_token=os.getenv("ANTHROPIC_API_KEY"),
+    default_headers={
+        "Authorization": os.getenv("ANTHROPIC_API_KEY"),
+    },
 )
 MODEL = os.environ["MODEL_ID"]
 SYSTEM = f"You are a coding agent at {WORKDIR}. Use tools to solve tasks. Act, don't explain."

@@ -32,7 +32,12 @@ load_dotenv(override=True)
 WORKDIR = Path.cwd()
 # client = Anthropic(base_url=os.getenv("ANTHROPIC_BASE_URL"))
 client = Anthropic(
-    base_url=os.getenv("ANTHROPIC_BASE_URL"), api_key=os.getenv("ANTHROPIC_API_KEY")
+    base_url=os.getenv("ANTHROPIC_BASE_URL"),
+    # api_key=os.getenv("ANTHROPIC_API_KEY"),
+    # auth_token=os.getenv("ANTHROPIC_API_KEY"),
+    default_headers={
+        "Authorization": os.getenv("ANTHROPIC_API_KEY"),
+    },
 )
 MODEL = os.environ["MODEL_ID"]
 SYSTEM = f"You are a coding agent at {WORKDIR}. Use the task tool to delegate exploration or subtasks."
@@ -223,7 +228,7 @@ def agent_loop(messages: list):
             if block.type == "tool_use":
                 if block.name == "task":
                     desc = block.input.get("description", "subtask")
-                    print(f"> task ({desc}): {block.input['prompt'][:80]}")
+                    print(f"> task ({desc}): {block.input['prompt']}")
                     output = run_subagent(block.input["prompt"])
                 else:
                     handler = TOOL_HANDLERS.get(block.name)
@@ -232,7 +237,7 @@ def agent_loop(messages: list):
                         if handler
                         else f"Unknown tool: {block.name}"
                     )
-                print(f"  {str(output)[:200]}")
+                print(f"  {str(output)}")
                 results.append({
                     "type": "tool_result",
                     "tool_use_id": block.id,
