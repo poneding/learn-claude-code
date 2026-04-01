@@ -22,8 +22,10 @@ Key insight: "Process isolation gives context isolation for free."
 import os
 import subprocess
 from pathlib import Path
+from typing import Optional
 
 from anthropic import Anthropic
+from anthropic.types import MessageParam, TextBlock, ToolParam
 from dotenv import load_dotenv
 
 load_dotenv(override=True)
@@ -31,13 +33,14 @@ load_dotenv(override=True)
 #     os.environ.pop("ANTHROPIC_AUTH_TOKEN", None)
 WORKDIR = Path.cwd()
 # client = Anthropic(base_url=os.getenv("ANTHROPIC_BASE_URL"))
+api_key = os.getenv("ANTHROPIC_API_KEY")
 client = Anthropic(
     base_url=os.getenv("ANTHROPIC_BASE_URL"),
-    # api_key=os.getenv("ANTHROPIC_API_KEY"),
-    # auth_token=os.getenv("ANTHROPIC_API_KEY"),
     default_headers={
-        "Authorization": os.getenv("ANTHROPIC_API_KEY"),
-    },
+        "Authorization": api_key,
+    }
+    if api_key
+    else None,
 )
 MODEL = os.environ["MODEL_ID"]
 SYSTEM = f"You are a coding agent at {WORKDIR}. Use the task tool to delegate exploration or subtasks."
@@ -71,7 +74,7 @@ def run_bash(command: str) -> str:
         return "Error: Timeout (120s)"
 
 
-def run_read(path: str, limit: int = None) -> str:
+def run_read(path: str, limit: Optional[int] = None) -> str:
     try:
         lines = safe_path(path).read_text().splitlines()
         if limit and limit < len(lines):
@@ -111,7 +114,7 @@ TOOL_HANDLERS = {
 }
 
 # Child gets all base tools except task (no recursive spawning)
-CHILD_TOOLS = [
+CHILD_TOOLS: list[ToolParam] = [
     {
         "name": "bash",
         "description": "Run a shell command.",
@@ -158,7 +161,10 @@ CHILD_TOOLS = [
 # -- Subagent: fresh context, filtered tools, summary-only return --
 # 子智能体以 messages=[] 启动, 运行自己的循环。只有最终文本返回给父智能体。
 def run_subagent(prompt: str) -> str:
-    sub_messages = [{"role": "user", "content": prompt}]  # fresh context
+    sub_messages: list[MessageParam] = [
+        {"role": "user", "content": prompt}
+    ]  # fresh context
+    response = None
     for _ in range(30):  # safety limit
         response = client.messages.create(
             model=MODEL,
@@ -185,14 +191,15 @@ def run_subagent(prompt: str) -> str:
         sub_messages.append({"role": "user", "content": results})
     # Only the final text returns to the parent -- child context is discarded
     return (
-        "".join(b.text for b in response.content if hasattr(b, "text"))
-        or "(no summary)"
+        "".join(b.text for b in response.content if isinstance(b, TextBlock))
+        if response
+        else "(no summary)"
     )
 
 
 # -- Parent tools: base tools + task dispatcher --
 # 子智能体拥有除 task 外的所有基础工具 (禁止递归生成)
-PARENT_TOOLS = CHILD_TOOLS + [
+PARENT_TOOLS: list[ToolParam] = CHILD_TOOLS + [
     {
         "name": "task",
         "description": "Spawn a subagent with fresh context. It shares the filesystem but not conversation history.",
@@ -211,7 +218,7 @@ PARENT_TOOLS = CHILD_TOOLS + [
 ]
 
 
-def agent_loop(messages: list):
+def agent_loop(messages: list[MessageParam]):
     while True:
         response = client.messages.create(
             model=MODEL,
@@ -229,7 +236,7 @@ def agent_loop(messages: list):
                 if block.name == "task":
                     desc = block.input.get("description", "subtask")
                     print(f"> task ({desc}): {block.input['prompt']}")
-                    output = run_subagent(block.input["prompt"])
+                    output = run_subagent(str(block.input["prompt"]))
                 else:
                     handler = TOOL_HANDLERS.get(block.name)
                     output = (
@@ -247,7 +254,7 @@ def agent_loop(messages: list):
 
 
 if __name__ == "__main__":
-    history = []
+    history: list[MessageParam] = []
     while True:
         try:
             query = input("\033[36ms04 >> \033[0m")
@@ -260,6 +267,6 @@ if __name__ == "__main__":
         response_content = history[-1]["content"]
         if isinstance(response_content, list):
             for block in response_content:
-                if hasattr(block, "text"):
+                if isinstance(block, TextBlock):
                     print(block.text)
         print()

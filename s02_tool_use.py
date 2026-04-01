@@ -20,6 +20,7 @@ import subprocess
 from pathlib import Path
 
 from anthropic import Anthropic
+from anthropic.types import ToolParam
 from dotenv import load_dotenv
 
 load_dotenv(override=True)
@@ -27,13 +28,14 @@ load_dotenv(override=True)
 #     os.environ.pop("ANTHROPIC_AUTH_TOKEN", None)
 WORKDIR = Path.cwd()
 # client = Anthropic(base_url=os.getenv("ANTHROPIC_BASE_URL"))
+api_key = os.getenv("ANTHROPIC_API_KEY")
 client = Anthropic(
     base_url=os.getenv("ANTHROPIC_BASE_URL"),
-    # api_key=os.getenv("ANTHROPIC_API_KEY"),
-    # auth_token=os.getenv("ANTHROPIC_API_KEY"),
     default_headers={
-        "Authorization": os.getenv("ANTHROPIC_API_KEY"),
-    },
+        "Authorization": api_key,
+    }
+    if api_key
+    else None,
 )
 MODEL = os.environ["MODEL_ID"]
 SYSTEM = f"You are a coding agent at {WORKDIR}. Use tools to solve tasks. Act, don't explain."
@@ -65,7 +67,7 @@ def run_bash(command: str) -> str:
         return "Error: Timeout (120s)"
 
 
-def run_read(path: str, limit: int = None) -> str:
+def run_read(path: str, limit: int | None = None) -> str:
     try:
         text = safe_path(path).read_text()
         lines = text.splitlines()
@@ -105,7 +107,7 @@ TOOL_HANDLERS = {
     "write_file": lambda **kw: run_write(kw["path"], kw["content"]),
     "edit_file": lambda **kw: run_edit(kw["path"], kw["old_text"], kw["new_text"]),
 }
-TOOLS = [
+TOOLS: list[ToolParam] = [
     {
         "name": "bash",
         "description": "Run a shell command.",

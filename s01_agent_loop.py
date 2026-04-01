@@ -23,23 +23,27 @@ import os
 import subprocess
 
 from anthropic import Anthropic
+from anthropic.types import ToolParam
 from dotenv import load_dotenv
 
 load_dotenv(override=True)
 # if os.getenv("ANTHROPIC_BASE_URL"):
 #     os.environ.pop("ANTHROPIC_AUTH_TOKEN", None)
 # client = Anthropic(base_url=os.getenv("ANTHROPIC_BASE_URL"))
+api_key = os.getenv("ANTHROPIC_API_KEY")
 client = Anthropic(
     base_url=os.getenv("ANTHROPIC_BASE_URL"),
     # api_key=os.getenv("ANTHROPIC_API_KEY"),
     # auth_token=os.getenv("ANTHROPIC_API_KEY"),
     default_headers={
-        "Authorization": os.getenv("ANTHROPIC_API_KEY"),
-    },
+        "Authorization": api_key,
+    }
+    if api_key
+    else None,
 )
 MODEL = os.environ["MODEL_ID"]
 SYSTEM = f"You are a coding agent at {os.getcwd()}. Use bash to solve tasks. Act, don't explain."
-TOOLS = [
+TOOLS: list[ToolParam] = [
     {
         "name": "bash",
         "description": "Run a shell command.",
@@ -90,8 +94,15 @@ def agent_loop(messages: list):
         results = []
         for block in response.content:
             if block.type == "tool_use":
-                print(f"\033[33m$ {block.input['command']}\033[0m")
-                output = run_bash(block.input["command"])
+                command = (
+                    block.input.get("command")
+                    if isinstance(block.input, dict)
+                    else block.input["command"]
+                )
+                if not isinstance(command, str):
+                    command = str(command) if command is not None else ""
+                print(f"\033[33m$ {command}\033[0m")
+                output = run_bash(command)
                 print(output[:200])
                 results.append({
                     "type": "tool_result",

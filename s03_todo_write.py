@@ -26,8 +26,10 @@ Key insight: "The agent can track its own progress -- and I can see it."
 import os
 import subprocess
 from pathlib import Path
+from typing import Optional
 
 from anthropic import Anthropic
+from anthropic.types.tool_param import ToolParam
 from dotenv import load_dotenv
 
 load_dotenv(override=True)
@@ -35,13 +37,14 @@ load_dotenv(override=True)
 #     os.environ.pop("ANTHROPIC_AUTH_TOKEN", None)
 WORKDIR = Path.cwd()
 # client = Anthropic(base_url=os.getenv("ANTHROPIC_BASE_URL"))
+api_key = os.getenv("ANTHROPIC_API_KEY")
 client = Anthropic(
     base_url=os.getenv("ANTHROPIC_BASE_URL"),
-    # api_key=os.getenv("ANTHROPIC_API_KEY"),
-    # auth_token=os.getenv("ANTHROPIC_API_KEY"),
     default_headers={
-        "Authorization": os.getenv("ANTHROPIC_API_KEY"),
-    },
+        "Authorization": api_key,
+    }
+    if api_key
+    else None,
 )
 MODEL = os.environ["MODEL_ID"]
 SYSTEM = f"""You are a coding agent at {WORKDIR}.
@@ -120,7 +123,7 @@ def run_bash(command: str) -> str:
         return "Error: Timeout (120s)"
 
 
-def run_read(path: str, limit: int = None) -> str:
+def run_read(path: str, limit: Optional[int] = None) -> str:
     try:
         lines = safe_path(path).read_text().splitlines()
         if limit and limit < len(lines):
@@ -159,7 +162,7 @@ TOOL_HANDLERS = {
     "edit_file": lambda **kw: run_edit(kw["path"], kw["old_text"], kw["new_text"]),
     "todo": lambda **kw: TODO.update(kw["items"]),
 }
-TOOLS = [
+TOOLS: list[ToolParam] = [
     {
         "name": "bash",
         "description": "Run a shell command.",
