@@ -225,6 +225,89 @@ uv run s04_subagents.py
 
 ## 5. Skills
 
+Load on Demand. 按需加载技能。
+
+> "用到什么知识, 临时加载什么知识" -- 通过 tool_result 注入, 不塞 system prompt。
+>
+> 在需要时通过工具结果注入知识，而不是在系统提示中预先注入。这其实是 Prompt 和 Skills 的本质区别: Prompt 是静态的, 在对话开始时就注入; Skills 是动态的, 通过工具结果在对话过程中注入。
+
+### 问题
+
+你希望智能体遵循特定领域的工作流: git 约定、测试模式、代码审查清单。全塞进系统提示太浪费 -- 10 个技能, 每个 2000 token, 就是 20,000 token, 大部分跟当前任务毫无关系。
+
+### 解决方案
+
+```txt
+System prompt (Layer 1 -- always present):
++--------------------------------------+
+| You are a coding agent.              |
+| Skills available:                    |
+|   - git: Git workflow helpers        |  ~100 tokens/skill
+|   - test: Testing best practices     |
++--------------------------------------+
+
+When model calls load_skill("git"):
++--------------------------------------+
+| tool_result (Layer 2 -- on demand):  |
+| <skill name="git">                   |
+|   Full git workflow instructions...  |  ~2000 tokens
+|   Step 1: ...                        |
+| </skill>                             |
++--------------------------------------+
+```
+
+第一层: 系统提示中放技能名称 (低成本)。
+
+第二层: tool_result 中按需放完整内容。
+
+### SKILL 工作原理
+
+每个技能是一个目录, 包含 `SKILL.md` 文件和 YAML frontmatter。
+
+格式如下：
+
+```markdown
+---
+name: git
+description: Git workflow helpers
+---
+
+# Git Workflow Instructions
+1. To commit changes, use: `git commit -m "message"`
+2. To push changes, use: `git push origin branch_name`
+...
+```
+
+`SkillLoader` 递归扫描 `SKILL.md` 文件, 用目录名作为技能标识。
+
+第一层写入系统提示。第二层不过是 dispatch map 中的又一个工具(`load_skill`)。
+
+```python
+SYSTEM = f"""You are a coding agent at {WORKDIR}.
+Skills available:
+{SKILL_LOADER.get_descriptions()}"""
+
+TOOL_HANDLERS = {
+    # ...base tools...
+    "load_skill": lambda **kw: SKILL_LOADER.get_content(kw["name"]),
+}
+```
+
+### 运行
+
+```bash
+uv run s05_skill_loading.py
+```
+
+测试下面这些 Prompts:
+
+```txt
+1. What skills are available?
+2. Load the agent-builder skill and follow its instructions
+3. I need to do a code review -- load the relevant skill first
+4. Build an MCP server using the mcp-builder skill
+```
+
 ## 6. Compact
 
 ## 7. Tasks
